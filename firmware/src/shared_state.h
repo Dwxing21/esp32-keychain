@@ -4,7 +4,12 @@
 struct NowPlayingState {
   String track = "";
   String artist = "";
+  uint32_t durationMs = 0;
+  uint32_t positionMs = 0;
+  uint32_t positionUpdatedAtMs = 0;
+  uint32_t albumColorRgb = 0xFFFFFF;
   bool isPlaying = false;
+  bool hasAlbumColor = false;
   volatile bool dirty = false;  // set true whenever something above changes
 };
 
@@ -37,3 +42,5 @@ extern volatile bool phoneConnected;
 // 0-100, or -1 if the battery ADC read fails to produce a sane value.
 // Set by battery.cpp (reads GPIO1, this board's confirmed BAT_ADC pin).
 extern int batteryPercent;
+// Filtered estimate of the battery voltage in millivolts, or 0 if unavailable.
+extern uint16_t batteryVoltageMv;

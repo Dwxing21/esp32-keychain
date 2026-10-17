@@ -1,12 +1,10 @@
-// TFT_eSPI setup for the Waveshare ESP32-S3-LCD-1.28 (GC9A01, 240x240 round IPS)
+// TFT_eSPI setup for the Waveshare ESP32-S3-Touch-LCD-1.28 (GC9A01, 240x240 IPS)
 //
-// These pins are the community-confirmed values for this exact board
-// (see https://github.com/Bodmer/TFT_eSPI/discussions/3283). If your display
-// stays blank, double check against the schematic at:
-// https://files.waveshare.com/wiki/ESP32-S3-LCD-1.28/Esp32-s3-lcd-.128-sch.pdf
+// Pin mapping follows the touch-board schematic:
+// https://files.waveshare.com/wiki/ESP32-S3-Touch-LCD-1.28/ESP32-S3-Touch-LCD-1.28-Sch.pdf
 
 #define USER_SETUP_ID 303
-#define USER_SETUP_INFO "ESP32-S3-LCD-1.28"
+#define USER_SETUP_INFO "ESP32-S3-Touch-LCD-1.28"
 
 #define GC9A01_DRIVER
 
@@ -17,11 +15,12 @@
 #define TFT_SCLK 10
 #define TFT_CS    9
 #define TFT_DC    8
-#define TFT_RST  12
-#define TFT_BL   40
+#define TFT_MISO 12
+#define TFT_RST  14
+#define TFT_BL    2
 #define TFT_BACKLIGHT_ON HIGH
 
-// Required on the S3 when using GPIO pins outside the default FSPI range
+// Select SPI3 explicitly; TFT_eSPI's ESP32-S3 register access expects this bus.
 #define USE_HSPI_PORT
 
 #define LOAD_GLCD

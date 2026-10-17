@@ -10,7 +10,9 @@
 
     <application
         android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
         android:label="Smartwatch Companion"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@style/Theme.AppCompat.Light.NoActionBar">
 
         <activity android:name=".MainActivity" android:exported="true">
@@ -22,14 +24,14 @@
 
         <!--
           Notification access must be granted manually by the user in system settings
-          (Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS) -- there's no runtime permission
+          (Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS): there's no runtime permission
           prompt for this, Android requires the explicit settings-page opt-in.
         -->
         <service
             android:name=".NotificationReaderService"
             android:label="Smartwatch notification reader"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
-            android:exported="false">
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>

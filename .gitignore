@@ -1,0 +1,8 @@
+.gradle/
+**/.gradle/
+**/build/
+**/.idea/
+**/local.properties
+firmware/.pio/
+firmware/.vscode/
+*.iml

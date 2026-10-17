@@ -8,10 +8,10 @@
 void initBLE();
 
 // Playback commands the watch can send to the phone (BOOT button on the Spotify screen).
-enum PlaybackCommand : uint8_t {
+enum PlaybackCommand {
   PLAYBACK_TOGGLE = 0,
   PLAYBACK_NEXT = 1,
-  PLAYBACK_PREVIOUS = 2,  // not wired to a gesture yet -- reserved for a second button
+  PLAYBACK_PREVIOUS = 2,
 };
 
 // Notifies the connected phone's subscribed characteristic. No-op if nothing is connected/subscribed.

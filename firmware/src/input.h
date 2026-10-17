@@ -1,7 +1,7 @@
 #pragma once
 
-// Sets up the BOOT button (GPIO0) via OneButton.
+// Sets up the CST816S touch controller and BOOT button (GPIO0).
 void initInput();
 
-// Call every loop() iteration to let OneButton evaluate click timing.
+// Poll touch and the BOOT button. Call every loop() iteration.
 void updateInput();

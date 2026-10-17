@@ -11,6 +11,7 @@
 #define CHAR_PLAYBACK_STATE_UUID  "c9a01004-1000-4bd9-ba21-70e224d9b8a0"
 #define CHAR_PLAYBACK_CMD_UUID    "c9a01005-1000-4bd9-ba21-70e224d9b8a0"  // watch -> phone, NOTIFY
 #define CHAR_LYRICS_LINE_UUID     "c9a01006-1000-4bd9-ba21-70e224d9b8a0"
+#define CHAR_ALBUM_COLOR_UUID     "c9a01007-1000-4bd9-ba21-70e224d9b8a0"
 
 #define NAV_SERVICE_UUID          "c9a02000-1000-4bd9-ba21-70e224d9b8a0"
 #define CHAR_NAV_INSTRUCTION_UUID "c9a02001-1000-4bd9-ba21-70e224d9b8a0"
@@ -48,11 +49,46 @@ class TrackInfoCallbacks : public NimBLECharacteristicCallbacks {
     std::string v = c->getValue();
     size_t firstNl = v.find('\n');
     size_t secondNl = v.find('\n', firstNl + 1);
-    if (firstNl == std::string::npos || secondNl == std::string::npos) return;
-    nowPlaying.track = String(v.substr(0, firstNl).c_str());
-    nowPlaying.artist = String(v.substr(firstNl + 1, secondNl - firstNl - 1).c_str());
-    nowPlaying.isPlaying = v.substr(secondNl + 1) == "1";
-    nowPlaying.dirty = true;
+    size_t thirdNl = v.find('\n', secondNl + 1);
+    if (firstNl == std::string::npos || secondNl == std::string::npos) {
+      Serial.printf("[BLE] Rejected track payload (%u bytes)\n", (unsigned)v.size());
+      return;
+    }
+    String track = String(v.substr(0, firstNl).c_str());
+    String artist = String(v.substr(firstNl + 1, secondNl - firstNl - 1).c_str());
+    uint32_t durationMs;
+    uint32_t positionMs;
+    bool isPlaying;
+    if (thirdNl == std::string::npos) {
+      // Legacy payload: track, artist, playing flag.
+      durationMs = 0;
+      positionMs = 0;
+      isPlaying = v.substr(secondNl + 1) == "1";
+    } else {
+      size_t fourthNl = v.find('\n', thirdNl + 1);
+      String durationPart = String(v.substr(secondNl + 1, thirdNl - secondNl - 1).c_str());
+      String positionPart = fourthNl == std::string::npos
+          ? "0"
+          : String(v.substr(thirdNl + 1, fourthNl - thirdNl - 1).c_str());
+      String playingPart = fourthNl == std::string::npos
+          ? String(v.substr(thirdNl + 1).c_str())
+          : String(v.substr(fourthNl + 1).c_str());
+      durationMs = durationPart.toInt() * 1000UL;
+      positionMs = positionPart.toInt() * 1000UL;
+      isPlaying = playingPart == "1";
+    }
+    bool displayStateChanged = nowPlaying.track != track || nowPlaying.artist != artist ||
+        nowPlaying.durationMs != durationMs || nowPlaying.isPlaying != isPlaying;
+    nowPlaying.track = track;
+    nowPlaying.artist = artist;
+    nowPlaying.durationMs = durationMs;
+    nowPlaying.positionMs = positionMs;
+    nowPlaying.isPlaying = isPlaying;
+    nowPlaying.positionUpdatedAtMs = millis();
+    if (displayStateChanged) nowPlaying.dirty = true;
+    Serial.printf("[BLE] Track payload received (%u bytes, duration=%lu ms, playing=%s)\n",
+                  (unsigned)v.size(), (unsigned long)nowPlaying.durationMs,
+                  nowPlaying.isPlaying ? "yes" : "no");
   }
 };
 
@@ -62,6 +98,7 @@ class PlaybackStateCallbacks : public NimBLECharacteristicCallbacks {
     if (v.empty()) return;
     nowPlaying.isPlaying = (v[0] == 1);
     nowPlaying.dirty = true;
+    Serial.printf("[BLE] Playback state received: %s\n", nowPlaying.isPlaying ? "playing" : "paused");
   }
 };
 
@@ -71,12 +108,16 @@ class NavInstructionCallbacks : public NimBLECharacteristicCallbacks {
     std::string v = c->getValue();
     size_t firstNl = v.find('\n');
     size_t secondNl = v.find('\n', firstNl + 1);
-    if (firstNl == std::string::npos || secondNl == std::string::npos) return;
+    if (firstNl == std::string::npos || secondNl == std::string::npos) {
+      Serial.printf("[BLE] Rejected navigation payload (%u bytes)\n", (unsigned)v.size());
+      return;
+    }
     navInfo.instruction = String(v.substr(0, firstNl).c_str());
     navInfo.distance = String(v.substr(firstNl + 1, secondNl - firstNl - 1).c_str());
     navInfo.maneuver = (uint8_t)atoi(v.substr(secondNl + 1).c_str());
     navInfo.active = true;
     navInfo.dirty = true;
+    Serial.printf("[BLE] Navigation payload received (%u bytes)\n", (unsigned)v.size());
   }
 };
 
@@ -86,6 +127,7 @@ class NavActiveCallbacks : public NimBLECharacteristicCallbacks {
     if (v.empty()) return;
     navInfo.active = (v[0] == 1);
     navInfo.dirty = true;
+    Serial.printf("[BLE] Navigation active: %s\n", navInfo.active ? "yes" : "no");
   }
 };
 
@@ -96,6 +138,28 @@ class LyricsLineCallbacks : public NimBLECharacteristicCallbacks {
     std::string v = c->getValue();
     lyricsState.currentLine = String(v.c_str());
     lyricsState.dirty = true;
+  }
+};
+
+// Four bytes: RGB color followed by 1 when valid, 0 when unavailable.
+class AlbumColorCallbacks : public NimBLECharacteristicCallbacks {
+  void onWrite(NimBLECharacteristic* c) override {
+    std::string value = c->getValue();
+    if (value.size() != 4) {
+      Serial.printf("[BLE] Rejected album color payload (%u bytes)\n", (unsigned)value.size());
+      return;
+    }
+
+    const bool hasColor = value[3] == 1;
+    const uint32_t color = ((uint32_t)(uint8_t)value[0] << 16) |
+                           ((uint32_t)(uint8_t)value[1] << 8) |
+                           (uint8_t)value[2];
+    if (nowPlaying.hasAlbumColor != hasColor ||
+        (hasColor && nowPlaying.albumColorRgb != color)) {
+      nowPlaying.hasAlbumColor = hasColor;
+      nowPlaying.albumColorRgb = color;
+      nowPlaying.dirty = true;
+    }
   }
 };
 
@@ -149,6 +213,10 @@ void initBLE() {
   NimBLECharacteristic* lyricsLineChar =
       nowPlayingService->createCharacteristic(CHAR_LYRICS_LINE_UUID, NIMBLE_PROPERTY::WRITE);
   lyricsLineChar->setCallbacks(new LyricsLineCallbacks());
+
+  NimBLECharacteristic* albumColorChar =
+      nowPlayingService->createCharacteristic(CHAR_ALBUM_COLOR_UUID, NIMBLE_PROPERTY::WRITE);
+  albumColorChar->setCallbacks(new AlbumColorCallbacks());
 
   nowPlayingService->start();
 
